@@ -56,7 +56,7 @@ const specifier =
   '0x048a2991c2676296b330734992245f5ba6b98174d3f1907d795b7639e92ce577';
 const zeroAddress = '0x0000000000000000000000000000000000000000';
 
-const piecewiseFunction = [3, 0, 0, 2, 10000];
+const piecewiseFunction = [3, 0, 0, 2,  1000000000];
 
 const tokensForOwner = ethers.BigNumber.from('1500000000000000000000000000000');
 
@@ -254,7 +254,11 @@ describe('ZapBondage', () => {
       let hashes = getEventHashSigs();
       //console.log(key)
       let index = hashes.findIndex((hash) => hash === event.topics[0]);
-      expect(eventSigs[index]).to.equal(expected[key]);
+      console.log(index)
+      if(index>=0){
+        expect(eventSigs[index]).to.equal(expected[key]);
+      }
+      
     });
   }
   let abi = [
@@ -262,7 +266,7 @@ describe('ZapBondage', () => {
   ];
 
   let IncomingInterface = new ethers.utils.Interface(abi);
-  it('DISPATCH_1 - respond1() - Check that we can make a simple query and the correct events are emitted', async function () {
+  it('DISPATCH_1 - offChainOracle - Check that we can make a simple offchain query and the correct events are emitted', async function () {
     await prepareProvider();
     await prepareTokens();
 
@@ -273,12 +277,14 @@ describe('ZapBondage', () => {
     await bondage
       .connect(subscriberAccount)
       .delegateBond(subscriber.address, owner.address, spec1, 10);
-
+    /**console.log(await dispatch.isContract(zapToken.address))
+    console.log(await dispatch.isContract(bondage.address))
     console.log(
       (
         await bondage.getBoundDots(subscriber.address, owner.address, spec1)
       ).toString()
     );
+    **/
     let result = await subscriber
       .connect(subscriberAccount)
       .testQuery(owner.address, query, spec1, params);
@@ -287,9 +293,46 @@ describe('ZapBondage', () => {
     let expected = [
       'Escrowed(address,address,bytes32,uint256)',
       'Incoming(uint256,address,address,string,bytes32,bytes32[],bool)',
-      'MadeQuery(address,string,uint256)'
+      
+      'MadeQuery(address,string,uint256)',
+      'FulfillQuery(address,address,bytes32)'
     ];
     validateEvents(r.events, expected);
+  });
+  it('DISPATCH_1.1 - onChainOracle - Check that we can make a simple offchain query and the correct events are emitted', async function () {
+    await prepareProvider();
+    await prepareTokens();
+
+    await zapToken
+      .connect(subscriberAccount)
+      .approve(bondage.address, approveTokens);
+
+   
+  
+    let spec= await oracle.spec1();
+
+    console.log(`the oracle spec is ${spec}`)
+    await bondage
+    .connect(subscriberAccount)
+    .delegateBond(subscriber.address, oracle.address, spec, 10);
+  
+  //  spec= spec.wait();
+    let result = await subscriber
+      .connect(subscriberAccount)
+      .testQuery(oracle.address, query, spec, params);
+    let r = await result.wait();
+   events(r.events, expected);
+    
+   let expected = [
+    'Escrowed(address,address,bytes32,uint256)',
+    'RecievedQuery(string,bytes32,bytes32[])',
+    '',
+    
+    "FulfillQuery(address,address,bytes32)",
+    'Result1(uint256,string)',
+    'MadeQuery(address,string,uint256)',    
+     ];
+  validateEvents(r.events, expected);
   });
   it('DISPATCH_2 - query() - Check query function will not be performed if subscriber will not have enough dots', async function () {
     await prepareProvider();
